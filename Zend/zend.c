@@ -581,6 +581,8 @@ static void executor_globals_ctor(zend_executor_globals *executor_globals TSRMLS
 #endif
 	EG(saved_fpu_cw_ptr) = NULL;
 	EG(active) = 0;
+	EG(autoload_legacy) = NULL;
+	EG(autoload_stack) = NULL;
 }
 /* }}} */
 

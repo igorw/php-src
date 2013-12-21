@@ -1054,8 +1054,8 @@ ZEND_API int zend_lookup_function_ex(const char *name, int name_length, const ze
 		lc_length = name_length;
 		hash = zend_inline_hash_func(lc_name, lc_length);
 	}
+	
 	if (zend_hash_quick_find(EG(function_table), lc_name, lc_length, hash, (void **) fbc) == SUCCESS) {
-
 		return SUCCESS;
 	}
 
@@ -1072,10 +1072,13 @@ ZEND_API int zend_lookup_function_ex(const char *name, int name_length, const ze
 	} else {
 		ZVAL_STRINGL(function_name_ptr, name, name_length, 1);
 	}
-	if (zend_autoload_call(function_name_ptr, ZEND_AUTOLOAD_FUNCTION TSRMLS_CC) == SUCCESS &&
-		zend_hash_quick_find(EG(function_table), lc_name, lc_length, hash, (void **) fbc) == SUCCESS) {
-		retval = SUCCESS;
+	
+	if (zend_autoload_call(function_name_ptr, ZEND_AUTOLOAD_FUNCTION TSRMLS_CC) != SUCCESS) {
+		/* do something, or not */
 	}
+	
+	retval = zend_hash_quick_find(
+		EG(function_table), lc_name, lc_length, hash, (void **) fbc);
 	zval_ptr_dtor(&function_name_ptr);
 
 	return retval;
