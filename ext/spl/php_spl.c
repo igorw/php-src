@@ -525,7 +525,7 @@ PHP_FUNCTION(spl_autoload_unregister)
 		efree(error);
 	}
 
-	RETURN_BOOL(zend_autoload_unregister(&fcc TSRMLS_CC) == SUCCESS);
+	RETURN_BOOL(zend_autoload_unregister(zcallable TSRMLS_CC) == SUCCESS);
 } /* }}} */
 
 /* {{{ proto false|array spl_autoload_functions()
