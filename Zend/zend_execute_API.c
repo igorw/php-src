@@ -1090,8 +1090,6 @@ ZEND_API int zend_lookup_class_ex(const char *name, int name_length, const zend_
 	char *lc_name;
 	char *lc_free;
 	ulong hash;
-	char dummy = 1;
-	
 	ALLOCA_FLAG(use_heap)
 
 	if (key) {
@@ -1145,12 +1143,18 @@ ZEND_API int zend_lookup_class_ex(const char *name, int name_length, const zend_
 		zend_hash_init(EG(in_autoload), 0, NULL, NULL, 0);
 	}
 
-	if (zend_hash_quick_add(EG(in_autoload), lc_name, lc_length, hash, (void**)&dummy, sizeof(char), NULL) == FAILURE) {
-		if (!key) {
-			free_alloca(lc_free, use_heap);
+	
+	{	
+		char unused = 1;
+		
+		if (zend_hash_quick_add(EG(in_autoload), lc_name, lc_length, hash, (void**)&unused, sizeof(char), NULL) == FAILURE) {
+			if (!key) {
+				free_alloca(lc_free, use_heap);
+			}
+			return FAILURE;
 		}
-		return FAILURE;
 	}
+	
 
 	ZVAL_STRINGL(&autoload_function, ZEND_AUTOLOAD_FUNC_NAME, sizeof(ZEND_AUTOLOAD_FUNC_NAME) - 1, 0);
 
