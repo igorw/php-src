@@ -1084,10 +1084,12 @@ ZEND_API int zend_lookup_function_ex(const char *name, int name_length, const ze
 
 ZEND_API int zend_lookup_class_ex(const char *name, int name_length, const zend_literal *key, int use_autoload, zend_class_entry ***ce TSRMLS_DC) /* {{{ */
 {
+	zval autoload_function;
 	zval *class_name_ptr;
 	int lc_length, retval = FAILURE;
 	char *lc_name;
 	char *lc_free;
+	char dummy = 1;
 	ulong hash;
 	ALLOCA_FLAG(use_heap)
 

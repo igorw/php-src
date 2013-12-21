@@ -207,6 +207,7 @@ struct _zend_executor_globals {
 	zend_bool in_execution;
 	HashTable *autoload_stack;
 	HashTable *autoload_funcs;
+	HashTable *in_autoload;
 	zend_function *autoload_legacy;
 
 	zend_bool full_tables_cleanup;
