@@ -867,7 +867,7 @@ static int php_openssl_sockop_cast(php_stream *stream, int castas, void **ret TS
 
 		case PHP_STREAM_AS_FD_FOR_SELECT:
 			if (ret) {
-				*(int *)ret = sslsock->s.socket;
+				*(php_socket_t *)ret = sslsock->s.socket;
 			}
 			return SUCCESS;
 
@@ -877,7 +877,7 @@ static int php_openssl_sockop_cast(php_stream *stream, int castas, void **ret TS
 				return FAILURE;
 			}
 			if (ret) {
-				*(int *)ret = sslsock->s.socket;
+				*(php_socket_t *)ret = sslsock->s.socket;
 			}
 			return SUCCESS;
 		default:
@@ -926,7 +926,7 @@ static char * get_sni(php_stream_context *ctx, const char *resourcename, size_t 
 	if (ctx) {
 		zval **val = NULL;
 
-		if (php_stream_context_get_option(ctx, "ssl", "SNI_enabled", &val) == SUCCESS && !zend_is_true(*val)) {
+		if (php_stream_context_get_option(ctx, "ssl", "SNI_enabled", &val) == SUCCESS && !zend_is_true(*val TSRMLS_CC)) {
 			return NULL;
 		}
 		if (php_stream_context_get_option(ctx, "ssl", "SNI_server_name", &val) == SUCCESS) {

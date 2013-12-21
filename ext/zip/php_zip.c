@@ -1010,7 +1010,11 @@ static int php_zip_has_property(zval *object, zval *member, int type KEY_ARG_DC 
 			Z_SET_REFCOUNT_P(tmp, 1);
 			Z_UNSET_ISREF_P(tmp);
 			if (type == 1) {
+#if PHP_VERSION_ID >= 50699
+				retval = zend_is_true(tmp TSRMLS_CC);
+#else
 				retval = zend_is_true(tmp);
+#endif
 			} else if (type == 0) {
 				retval = (Z_TYPE_P(tmp) != IS_NULL);
 			}
@@ -1510,7 +1514,7 @@ static ZIPARCHIVE_METHOD(open)
 	int filename_len;
 	int err = 0;
 	long flags = 0;
-	char resolved_path[MAXPATHLEN];
+	char *resolved_path;
 
 	zval *this = getThis();
 	ze_zip_object *ze_obj = NULL;
@@ -1533,7 +1537,7 @@ static ZIPARCHIVE_METHOD(open)
 		RETURN_FALSE;
 	}
 
-	if (!expand_filepath(filename, resolved_path TSRMLS_CC)) {
+	if (!(resolved_path = expand_filepath(filename, NULL TSRMLS_CC))) {
 		RETURN_FALSE;
 	}
 
@@ -1554,8 +1558,8 @@ static ZIPARCHIVE_METHOD(open)
 	if (!intern || err) {
 		RETURN_LONG((long)err);
 	}
-	ze_obj->filename = estrdup(resolved_path);
-	ze_obj->filename_len = filename_len;
+	ze_obj->filename = resolved_path;
+	ze_obj->filename_len = strlen(resolved_path);
 	ze_obj->za = intern;
 	RETURN_TRUE;
 }

@@ -448,9 +448,9 @@ ZEND_API void _zval_internal_ptr_dtor(zval **zval_ptr ZEND_FILE_LINE_DC) /* {{{ 
 }
 /* }}} */
 
-ZEND_API int zend_is_true(zval *op) /* {{{ */
+ZEND_API int zend_is_true(zval *op TSRMLS_DC) /* {{{ */
 {
-	return i_zend_is_true(op);
+	return i_zend_is_true(op TSRMLS_CC);
 }
 /* }}} */
 
@@ -1054,8 +1054,8 @@ ZEND_API int zend_lookup_function_ex(const char *name, int name_length, const ze
 		lc_length = name_length;
 		hash = zend_inline_hash_func(lc_name, lc_length);
 	}
+	
 	if (zend_hash_quick_find(EG(function_table), lc_name, lc_length, hash, (void **) fbc) == SUCCESS) {
-
 		return SUCCESS;
 	}
 
@@ -1072,10 +1072,13 @@ ZEND_API int zend_lookup_function_ex(const char *name, int name_length, const ze
 	} else {
 		ZVAL_STRINGL(function_name_ptr, name, name_length, 1);
 	}
-	if (zend_autoload_call(function_name_ptr, ZEND_AUTOLOAD_FUNCTION TSRMLS_CC) == SUCCESS &&
-		zend_hash_quick_find(EG(function_table), lc_name, lc_length, hash, (void **) fbc) == SUCCESS) {
-		retval = SUCCESS;
+	
+	if (zend_autoload_call(function_name_ptr, ZEND_AUTOLOAD_FUNCTION TSRMLS_CC) != SUCCESS) {
+		/* do something, or not */
 	}
+	
+	retval = zend_hash_quick_find(
+		EG(function_table), lc_name, lc_length, hash, (void **) fbc);
 	zval_ptr_dtor(&function_name_ptr);
 
 	return retval;
@@ -1144,12 +1147,18 @@ ZEND_API int zend_lookup_class_ex(const char *name, int name_length, const zend_
 		zend_hash_init(EG(in_autoload), 0, NULL, NULL, 0);
 	}
 
-	if (zend_hash_quick_add(EG(in_autoload), lc_name, lc_length, hash, (void**)&dummy, sizeof(char), NULL) == FAILURE) {
-		if (!key) {
-			free_alloca(lc_free, use_heap);
+	
+	{	
+		char unused = 1;
+		
+		if (zend_hash_quick_add(EG(in_autoload), lc_name, lc_length, hash, (void**)&unused, sizeof(char), NULL) == FAILURE) {
+			if (!key) {
+				free_alloca(lc_free, use_heap);
+			}
+			return FAILURE;
 		}
-		return FAILURE;
 	}
+	
 
 	ZVAL_STRINGL(&autoload_function, ZEND_AUTOLOAD_FUNC_NAME, sizeof(ZEND_AUTOLOAD_FUNC_NAME) - 1, 0);
 

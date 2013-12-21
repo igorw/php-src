@@ -56,7 +56,7 @@ ZEND_API FILE *(*zend_fopen)(const char *filename, char **opened_path TSRMLS_DC)
 ZEND_API int (*zend_stream_open_function)(const char *filename, zend_file_handle *handle TSRMLS_DC);
 ZEND_API void (*zend_block_interruptions)(void);
 ZEND_API void (*zend_unblock_interruptions)(void);
-ZEND_API void (*zend_ticks_function)(int ticks);
+ZEND_API void (*zend_ticks_function)(int ticks TSRMLS_DC);
 ZEND_API void (*zend_error_cb)(int type, const char *error_filename, const uint error_lineno, const char *format, va_list args);
 int (*zend_vspprintf)(char **pbuf, size_t max_len, const char *format, va_list ap);
 ZEND_API char *(*zend_getenv)(char *name, size_t name_len TSRMLS_DC);
@@ -581,6 +581,8 @@ static void executor_globals_ctor(zend_executor_globals *executor_globals TSRMLS
 #endif
 	EG(saved_fpu_cw_ptr) = NULL;
 	EG(active) = 0;
+	EG(autoload_legacy) = NULL;
+	EG(autoload_stack) = NULL;
 }
 /* }}} */
 
@@ -963,6 +965,16 @@ ZEND_API void zend_deactivate(TSRMLS_D) /* {{{ */
 		gc_collect_cycles(TSRMLS_C);
 	}
 #endif
+
+	if (EG(autoload_stack)) {
+		zend_hash_destroy(EG(autoload_stack));
+		FREE_HASHTABLE(EG(autoload_stack));
+	}
+	
+	if (EG(in_autoload)) {
+		zend_hash_destroy(EG(in_autoload));
+		FREE_HASHTABLE(EG(in_autoload));
+	}
 
 #if GC_BENCH
 	fprintf(stderr, "GC Statistics\n");

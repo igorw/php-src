@@ -179,7 +179,7 @@ static PHP_INI_MH(OnChangeMemoryLimit)
 	} else {
 		PG(memory_limit) = 1<<30;		/* effectively, no limit */
 	}
-	return zend_set_memory_limit(PG(memory_limit));
+	return zend_set_memory_limit(PG(memory_limit) TSRMLS_CC);
 }
 /* }}} */
 
@@ -1166,7 +1166,7 @@ static void php_error_cb(int type, const char *error_filename, const uint error_
 					CG(parse_error) = 0;
 				} else {
 					/* restore memory limit */
-					zend_set_memory_limit(PG(memory_limit));
+					zend_set_memory_limit(PG(memory_limit) TSRMLS_CC);
 					efree(buffer);
 					zend_objects_store_mark_destructed(&EG(objects_store) TSRMLS_CC);
 					zend_bailout();
@@ -1793,7 +1793,7 @@ void php_request_shutdown(void *dummy)
 		}
 	} zend_end_try();
 
-	/* 7.5 free last error information */
+	/* 8. free last error information */
 	if (PG(last_error_message)) {
 		free(PG(last_error_message));
 		PG(last_error_message) = NULL;
@@ -1803,34 +1803,34 @@ void php_request_shutdown(void *dummy)
 		PG(last_error_file) = NULL;
 	}
 
-	/* 7. Shutdown scanner/executor/compiler and restore ini entries */
+	/* 9. Shutdown scanner/executor/compiler and restore ini entries */
 	zend_deactivate(TSRMLS_C);
 
-	/* 8. Call all extensions post-RSHUTDOWN functions */
+	/* 10. Call all extensions post-RSHUTDOWN functions */
 	zend_try {
 		zend_post_deactivate_modules(TSRMLS_C);
 	} zend_end_try();
 
-	/* 9. SAPI related shutdown (free stuff) */
+	/* 11. SAPI related shutdown (free stuff) */
 	zend_try {
 		sapi_deactivate(TSRMLS_C);
 	} zend_end_try();
 
-	/* 9.5 free virtual CWD memory */
+	/* 12. free virtual CWD memory */
 	virtual_cwd_deactivate(TSRMLS_C);
 
-	/* 10. Destroy stream hashes */
+	/* 13. Destroy stream hashes */
 	zend_try {
 		php_shutdown_stream_hashes(TSRMLS_C);
 	} zend_end_try();
 
-	/* 11. Free Willy (here be crashes) */
+	/* 14. Free Willy (here be crashes) */
 	zend_try {
 		shutdown_memory_manager(CG(unclean_shutdown) || !report_memleaks, 0 TSRMLS_CC);
 	} zend_end_try();
 	zend_interned_strings_restore(TSRMLS_C);
 
-	/* 12. Reset max_execution_time */
+	/* 15. Reset max_execution_time */
 	zend_try {
 		zend_unset_timeout(TSRMLS_C);
 	} zend_end_try();
@@ -2643,9 +2643,9 @@ PHPAPI int php_lint_script(zend_file_handle *file TSRMLS_DC)
 #ifdef PHP_WIN32
 /* {{{ dummy_indent
    just so that this symbol gets exported... */
-PHPAPI void dummy_indent(void)
+PHPAPI void dummy_indent(TSRMLS_D)
 {
-	zend_indent();
+	zend_indent(TSRMLS_C);
 }
 /* }}} */
 #endif
