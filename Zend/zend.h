@@ -599,6 +599,7 @@ typedef int (*zend_write_func_t)(const char *str, uint str_length);
 #define IS_LEXICAL_VAR				0x020
 #define IS_LEXICAL_REF				0x040
 #define IS_CONSTANT_IN_NAMESPACE	0x100
+#define IS_CONSTANT_IN_AUTOLOAD		0x200
 
 #define IS_CONSTANT_TYPE(type) (((type) & IS_CONSTANT_TYPE_MASK) >= IS_CONSTANT && ((type) & IS_CONSTANT_TYPE_MASK) <= IS_CONSTANT_AST)
 

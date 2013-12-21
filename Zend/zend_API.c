@@ -2770,7 +2770,7 @@ static int zend_is_callable_check_func(int check_flags, zval *callable, zend_fca
 		}
 		/* Check if function with given name exists.
 		 * This may be a compound name that includes namespace name */
-		if (zend_hash_find(EG(function_table), lmname, mlen+1, (void**)&fcc->function_handler) == SUCCESS) {
+		if (ZEND_LOOKUP_FUNCTION_BY_NAME(lmname, mlen, &fcc->function_handler)) {
 			efree(lmname);
 			return 1;
 		}

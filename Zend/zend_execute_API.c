@@ -32,6 +32,7 @@
 #include "zend_exceptions.h"
 #include "zend_closures.h"
 #include "zend_generators.h"
+#include "zend_autoload.h"
 #include "zend_vm.h"
 #include "zend_float.h"
 #ifdef HAVE_SYS_TIME_H
@@ -151,8 +152,8 @@ void init_executor(TSRMLS_D) /* {{{ */
 	EG(class_table) = CG(class_table);
 
 	EG(in_execution) = 0;
-	EG(in_autoload) = NULL;
-	EG(autoload_func) = NULL;
+	EG(autoload_funcs) = NULL;
+	EG(autoload_stack) = NULL;
 	EG(error_handling) = EH_NORMAL;
 
 	zend_vm_stack_init(TSRMLS_C);
@@ -325,9 +326,13 @@ void shutdown_executor(TSRMLS_D) /* {{{ */
 		zend_ptr_stack_destroy(&EG(user_error_handlers));
 		zend_ptr_stack_destroy(&EG(user_exception_handlers));
 		zend_objects_store_destroy(&EG(objects_store));
-		if (EG(in_autoload)) {
-			zend_hash_destroy(EG(in_autoload));
-			FREE_HASHTABLE(EG(in_autoload));
+		if (EG(autoload_stack)) {
+			zend_hash_destroy(EG(autoload_stack));
+			FREE_HASHTABLE(EG(autoload_stack));
+		}
+		if (EG(autoload_funcs)) {
+			zend_hash_destroy(EG(autoload_funcs));
+			FREE_HASHTABLE(EG(autoload_funcs));
 		}
 	} zend_end_try();
 
@@ -1023,18 +1028,66 @@ int zend_call_function(zend_fcall_info *fci, zend_fcall_info_cache *fci_cache TS
 }
 /* }}} */
 
+ZEND_API int zend_lookup_function(const char *name, int name_length, zend_function **fbc TSRMLS_DC) /* {{{ */
+{
+	return zend_lookup_function_ex(name, name_length, NULL, 1, fbc TSRMLS_CC);
+}
+
+ZEND_API int zend_lookup_function_ex(const char *name, int name_length, const zend_literal *key, int use_autoload, zend_function **fbc TSRMLS_DC)
+{
+	char *lc_name;
+	int lc_length;
+	int retval = FAILURE;
+	zend_ulong hash;
+	zval *function_name_ptr;
+
+
+	if (key) {
+		lc_name = Z_STRVAL(key->constant);
+		lc_length = Z_STRLEN(key->constant) + 1;
+		hash = key->hash_value;
+	} else {
+		if (name == NULL || !name_length) {
+			return FAILURE;
+		}
+		lc_name = name;
+		lc_length = name_length;
+		hash = zend_inline_hash_func(lc_name, lc_length);
+	}
+	if (zend_hash_quick_find(EG(function_table), lc_name, lc_length, hash, (void **) fbc) == SUCCESS) {
+
+		return SUCCESS;
+	}
+
+	/* The compiler is not-reentrant. Make sure we __autoload_function() only during run-time
+	 * (doesn't impact functionality of __autoload_function()
+	*/
+	if (!use_autoload || zend_is_compiling(TSRMLS_C)) {
+		return FAILURE;
+	}
+
+	ALLOC_INIT_ZVAL(function_name_ptr);
+	if (name[0] == '\\') {
+		ZVAL_STRINGL(function_name_ptr, name+1, name_length-1, 1);
+	} else {
+		ZVAL_STRINGL(function_name_ptr, name, name_length, 1);
+	}
+	if (zend_autoload_call(function_name_ptr, ZEND_AUTOLOAD_FUNCTION TSRMLS_CC) == SUCCESS &&
+		zend_hash_quick_find(EG(function_table), lc_name, lc_length, hash, (void **) fbc) == SUCCESS) {
+		retval = SUCCESS;
+	}
+	zval_ptr_dtor(&function_name_ptr);
+
+	return retval;
+
+}
+
 ZEND_API int zend_lookup_class_ex(const char *name, int name_length, const zend_literal *key, int use_autoload, zend_class_entry ***ce TSRMLS_DC) /* {{{ */
 {
-	zval **args[1];
-	zval autoload_function;
 	zval *class_name_ptr;
-	zval *retval_ptr = NULL;
-	int retval, lc_length;
+	int lc_length, retval = FAILURE;
 	char *lc_name;
 	char *lc_free;
-	zend_fcall_info fcall_info;
-	zend_fcall_info_cache fcall_cache;
-	char dummy = 1;
 	ulong hash;
 	ALLOCA_FLAG(use_heap)
 
@@ -1083,7 +1136,7 @@ ZEND_API int zend_lookup_class_ex(const char *name, int name_length, const zend_
 		}
 		return FAILURE;
 	}
-	
+
 	if (EG(in_autoload) == NULL) {
 		ALLOC_HASHTABLE(EG(in_autoload));
 		zend_hash_init(EG(in_autoload), 0, NULL, NULL, 0);
@@ -1105,42 +1158,11 @@ ZEND_API int zend_lookup_class_ex(const char *name, int name_length, const zend_
 	} else {
 		ZVAL_STRINGL(class_name_ptr, name, name_length, 1);
 	}
-
-	args[0] = &class_name_ptr;
-
-	fcall_info.size = sizeof(fcall_info);
-	fcall_info.function_table = EG(function_table);
-	fcall_info.function_name = &autoload_function;
-	fcall_info.symbol_table = NULL;
-	fcall_info.retval_ptr_ptr = &retval_ptr;
-	fcall_info.param_count = 1;
-	fcall_info.params = args;
-	fcall_info.object_ptr = NULL;
-	fcall_info.no_separation = 1;
-
-	fcall_cache.initialized = EG(autoload_func) ? 1 : 0;
-	fcall_cache.function_handler = EG(autoload_func);
-	fcall_cache.calling_scope = NULL;
-	fcall_cache.called_scope = NULL;
-	fcall_cache.object_ptr = NULL;
-
-	zend_exception_save(TSRMLS_C);
-	retval = zend_call_function(&fcall_info, &fcall_cache TSRMLS_CC);
-	zend_exception_restore(TSRMLS_C);
-
-	EG(autoload_func) = fcall_cache.function_handler;
-
+	if (zend_autoload_call(class_name_ptr, ZEND_AUTOLOAD_CLASS TSRMLS_CC) == SUCCESS &&
+		zend_hash_quick_find(EG(class_table), lc_name, lc_length, hash, (void **) ce) == SUCCESS) {
+		retval = SUCCESS;
+	}
 	zval_ptr_dtor(&class_name_ptr);
-
-	zend_hash_quick_del(EG(in_autoload), lc_name, lc_length, hash);
-
-	if (retval_ptr) {
-		zval_ptr_dtor(&retval_ptr);
-	}
-
-	if (retval == SUCCESS) {
-		retval = zend_hash_quick_find(EG(class_table), lc_name, lc_length, hash, (void **) ce);
-	}
 	if (!key) {
 		free_alloca(lc_free, use_heap);
 	}
