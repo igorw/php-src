@@ -71,10 +71,12 @@ int zend_autoload_call(const zval* name, long type TSRMLS_DC)
 			)
 		) {
 			zend_call_method_with_1_params(NULL, NULL, &EG(autoload_legacy), ZEND_AUTOLOAD_FUNC_NAME, &retval, (zval*) name);
+			zend_exception_save(TSRMLS_C);
 			if (zend_hash_exists(symbol_table, lc_name, lc_length + 1)) {
 				if (retval) {
 					zval_ptr_dtor(&retval);
 				}
+				zend_exception_restore(TSRMLS_C);
 				efree(lc_name);
 				return SUCCESS;
 			}
@@ -82,6 +84,7 @@ int zend_autoload_call(const zval* name, long type TSRMLS_DC)
 				zval_ptr_dtor(&retval);
 			}
 		}
+		zend_exception_restore(TSRMLS_C);
 		efree(lc_name);
 		return FAILURE;
 	}

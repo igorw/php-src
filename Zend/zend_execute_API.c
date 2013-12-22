@@ -346,6 +346,7 @@ void shutdown_executor(TSRMLS_D) /* {{{ */
 			FREE_HASHTABLE(EG(in_autoload));
 			EG(in_autoload) = NULL;
 		}
+		EG(autoload_legacy) = NULL;
 	} zend_end_try();
 
 	zend_shutdown_fpu(TSRMLS_C);
