@@ -326,13 +326,25 @@ void shutdown_executor(TSRMLS_D) /* {{{ */
 		zend_ptr_stack_destroy(&EG(user_error_handlers));
 		zend_ptr_stack_destroy(&EG(user_exception_handlers));
 		zend_objects_store_destroy(&EG(objects_store));
+		
+	} zend_end_try();
+	
+	zend_try {
+		/* shutdown autoload */
 		if (EG(autoload_stack)) {
 			zend_hash_destroy(EG(autoload_stack));
 			FREE_HASHTABLE(EG(autoload_stack));
+			EG(autoload_stack) = NULL;
 		}
 		if (EG(autoload_funcs)) {
 			zend_hash_destroy(EG(autoload_funcs));
 			FREE_HASHTABLE(EG(autoload_funcs));
+			EG(autoload_funcs) = NULL;
+		}
+		if (EG(in_autoload)) {
+			zend_hash_destroy(EG(in_autoload));
+			FREE_HASHTABLE(EG(in_autoload));
+			EG(in_autoload) = NULL;
 		}
 	} zend_end_try();
 

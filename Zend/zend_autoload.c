@@ -67,13 +67,19 @@ int zend_autoload_call(const zval* name, long type TSRMLS_DC)
 		if (type == ZEND_AUTOLOAD_CLASS
 			&& (	
 				EG(autoload_legacy) != NULL
-				|| zend_lookup_function_ex(ZEND_AUTOLOAD_FUNC_NAME, sizeof(ZEND_AUTOLOAD_FUNC_NAME) - 1, NULL, 0, &EG(autoload_legacy) TSRMLS_CC) == SUCCESS
+				|| zend_lookup_function_ex(ZEND_AUTOLOAD_FUNC_NAME, sizeof(ZEND_AUTOLOAD_FUNC_NAME), NULL, 0, &EG(autoload_legacy) TSRMLS_CC) == SUCCESS
 			)
 		) {
-			zend_call_method_with_1_params(NULL, NULL, &EG(autoload_legacy), ZEND_AUTOLOAD_FUNC_NAME, &retval, name);
+			zend_call_method_with_1_params(NULL, NULL, &EG(autoload_legacy), ZEND_AUTOLOAD_FUNC_NAME, &retval, (zval*) name);
 			if (zend_hash_exists(symbol_table, lc_name, lc_length + 1)) {
+				if (retval) {
+					zval_ptr_dtor(&retval);
+				}
 				efree(lc_name);
 				return SUCCESS;
+			}
+			if (retval) {
+				zval_ptr_dtor(&retval);
 			}
 		}
 		efree(lc_name);

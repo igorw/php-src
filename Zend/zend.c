@@ -966,16 +966,6 @@ ZEND_API void zend_deactivate(TSRMLS_D) /* {{{ */
 	}
 #endif
 
-	if (EG(autoload_stack)) {
-		zend_hash_destroy(EG(autoload_stack));
-		FREE_HASHTABLE(EG(autoload_stack));
-	}
-	
-	if (EG(in_autoload)) {
-		zend_hash_destroy(EG(in_autoload));
-		FREE_HASHTABLE(EG(in_autoload));
-	}
-
 #if GC_BENCH
 	fprintf(stderr, "GC Statistics\n");
 	fprintf(stderr, "-------------\n");
