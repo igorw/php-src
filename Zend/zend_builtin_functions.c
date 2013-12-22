@@ -1366,8 +1366,8 @@ ZEND_FUNCTION(trait_exists)
 /* }}} */
 
 
-/* {{{ proto bool function_exists(string function_name) 
-   Checks if the function exists */
+/* {{{ proto bool function_exists(string function_name [, boolean autoload = true]) 
+   Checks if the function exists, optionally and by default invoking autoloaders */
 ZEND_FUNCTION(function_exists)
 {
 	char *name;
