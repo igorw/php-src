@@ -13,6 +13,7 @@
    | license@zend.com so we can mail you a copy immediately.              |
    +----------------------------------------------------------------------+
    | Authors: Anthony Ferrara <ircmaxell@php.net>                         |
+   | Authors: Joe Watkins <krakjoe@php.net>                               |
    +----------------------------------------------------------------------+
 */
 
@@ -29,7 +30,7 @@
 #include "zend_interfaces.h"
 #include "zend_exceptions.h"
 
-static char* zend_autoload_get_name_key(zend_fcall_info *fci, int *length, zend_bool *do_free TSRMLS_DC);
+static char* zend_autoload_get_name_key(zend_fcall_info *fci, zend_fcall_info_cache *fcc, int *length, zend_bool *do_free TSRMLS_DC);
 static void zend_autoload_func_dtor(zend_autoload_func *func);
 
 int zend_autoload_call(const zval* name, long type TSRMLS_DC)
@@ -63,29 +64,36 @@ int zend_autoload_call(const zval* name, long type TSRMLS_DC)
 	lc_length = Z_STRLEN_P(name);
 	lc_name = zend_str_tolower_dup(Z_STRVAL_P(name), lc_length);
 
-	if (EG(autoload_funcs) == NULL || EG(autoload_funcs)->nNumOfElements == 0) {
-		if (type == ZEND_AUTOLOAD_CLASS
-			&& (	
-				EG(autoload_legacy) != NULL
-				|| zend_lookup_function_ex(ZEND_AUTOLOAD_FUNC_NAME, sizeof(ZEND_AUTOLOAD_FUNC_NAME) - 1, NULL, 0, &EG(autoload_legacy) TSRMLS_CC) == SUCCESS
-			)
-		) {
-			zend_call_method_with_1_params(NULL, NULL, &EG(autoload_legacy), ZEND_AUTOLOAD_FUNC_NAME, &retval, name);
-			if (zend_hash_exists(symbol_table, lc_name, lc_length + 1)) {
-				efree(lc_name);
-				return SUCCESS;
+	/* run legacy autoloader */
+	{
+		zend_bool loaded = 0;
+		
+		if (EG(autoload_funcs) == NULL || EG(autoload_funcs)->nNumOfElements == 0) {
+			if (type == ZEND_AUTOLOAD_CLASS
+				&& (	
+					EG(autoload_legacy) != NULL
+					|| zend_lookup_function_ex(ZEND_AUTOLOAD_FUNC_NAME, sizeof(ZEND_AUTOLOAD_FUNC_NAME), NULL, 0, &EG(autoload_legacy) TSRMLS_CC) == SUCCESS
+				)
+			) {
+				zend_call_method_with_1_params(NULL, NULL, &EG(autoload_legacy), ZEND_AUTOLOAD_FUNC_NAME, &retval, (zval*) name);
+				loaded = zend_hash_exists(
+					symbol_table, lc_name, lc_length + 1);
+				if (retval) {
+					zval_ptr_dtor(&retval);
+				}
 			}
+			efree(lc_name);
+			
+			return (loaded) ? SUCCESS : FAILURE;
 		}
-		efree(lc_name);
-		return FAILURE;
 	}
-
+	
 	if (EG(autoload_stack) == NULL) {
 		ALLOC_HASHTABLE(EG(autoload_stack));
 		zend_hash_init(EG(autoload_stack), 0, NULL, NULL, 0);
 	}
 
-	if (zend_hash_add(EG(autoload_stack), lc_name, lc_length, (void**)&dummy, sizeof(char), NULL) == FAILURE) {
+	if (zend_hash_add(EG(autoload_stack), lc_name, lc_length+1, (void**)&dummy, sizeof(char), NULL) == FAILURE) {
 		efree(lc_name);
 		return FAILURE;
 	}
@@ -98,7 +106,7 @@ int zend_autoload_call(const zval* name, long type TSRMLS_DC)
 		zend_hash_get_current_data_ex(EG(autoload_funcs), (void **) &func_info, &function_pos);
 		if (func_info->type & type) {
 			func_info->fci.retval_ptr_ptr = &retval;
-			zend_fcall_info_argn(&func_info->fci, 2, &name, &ztype);
+			zend_fcall_info_argn(&func_info->fci TSRMLS_CC, 2, &name, &ztype);
 			zend_call_function(&func_info->fci, &func_info->fcc TSRMLS_CC);
 			zend_exception_save(TSRMLS_C);
 			if (retval) {
@@ -128,7 +136,7 @@ int zend_autoload_call(const zval* name, long type TSRMLS_DC)
     (ht)->pListTail->pListNext = NULL;                      \
     (ht)->pListHead->pListLast = NULL;
 
-static char* zend_autoload_get_name_key(zend_fcall_info *fci, int *length, zend_bool *do_free TSRMLS_DC) {
+static char* zend_autoload_get_name_key(zend_fcall_info *fci, zend_fcall_info_cache *fcc, int *length, zend_bool *do_free TSRMLS_DC) {
 	char *name;
 	switch (Z_TYPE_P(fci->function_name)) {
 		case IS_STRING:
@@ -143,9 +151,29 @@ static char* zend_autoload_get_name_key(zend_fcall_info *fci, int *length, zend_
 			name[*length] = '\0';
 			return name;
 			break;
+		case IS_ARRAY:
+			if (fcc->function_handler->common.scope) {
+				zend_function *func = fcc->function_handler;
+				zend_class_entry *ce = func->common.scope;
+				
+				*do_free = 1;
+				if (ce) {
+					*length = strlen(func->common.function_name) + ce->name_length + 2;
+					name = emalloc(*length + 1);
+					memcpy(name, ce->name, ce->name_length);
+					memcpy(&name[ce->name_length], "::", sizeof("::")-1);
+					memcpy(&name[ce->name_length+sizeof("::")-1], 
+						func->common.function_name, strlen(func->common.function_name));
+					name[*length] = 0;
+					return name;
+				}
+			}
+			break;
 		default:
 			return 0;
 	}
+	
+	return 0;
 }
 
 static void zend_autoload_func_dtor(zend_autoload_func *func) {
@@ -160,7 +188,7 @@ int zend_autoload_register(zend_autoload_func *func, zend_bool prepend TSRMLS_DC
 	zend_bool do_free = 0;
 	int lc_length, status = SUCCESS;
 
-	lc_name = zend_autoload_get_name_key(&func->fci, &lc_length, &do_free);
+	lc_name = zend_autoload_get_name_key(&func->fci, &func->fcc, &lc_length, &do_free TSRMLS_CC);
 	if (lc_name == 0) {
 		zend_error_noreturn(E_ERROR, "Unknown Function Name Type Provided");
 	}
@@ -194,11 +222,11 @@ int zend_autoload_unregister(zval *callable TSRMLS_DC)
 	zend_bool do_free = 0;
 	int lc_length;
 
-	if (zend_fcall_info_init(callable, 0, &fci, &fcc, NULL, NULL) == FAILURE) {
+	if (zend_fcall_info_init(callable, 0, &fci, &fcc, NULL, NULL TSRMLS_CC) == FAILURE) {
 		return FAILURE;
 	}
 
-	lc_name = zend_autoload_get_name_key(&fci, &lc_length, &do_free);
+	lc_name = zend_autoload_get_name_key(&fci, &fcc, &lc_length, &do_free TSRMLS_CC);
 	if (lc_name == 0) {
 		return FAILURE;
 	}
@@ -218,13 +246,13 @@ ZEND_FUNCTION(autoload_register)
 	zend_bool prepend = 0;
 	long type = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_DC, "z|lb", &callable, &type, &prepend) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|lb", &callable, &type, &prepend) == FAILURE) {
 		return;
 	}
 
 	func = emalloc(sizeof(zend_autoload_func));
 
-	if (zend_fcall_info_init(callable, 0, &func->fci, &func->fcc, NULL, NULL) == FAILURE) {
+	if (zend_fcall_info_init(callable, 0, &func->fci, &func->fcc, NULL, NULL TSRMLS_CC) == FAILURE) {
 		efree(func);
 		zend_error_noreturn(E_ERROR, "Expecting a valid callback");
 	}
@@ -248,7 +276,7 @@ ZEND_FUNCTION(autoload_unregister)
 {
 	zval *callable;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_DC, "z", &callable) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &callable) == FAILURE) {
 		return;
 	}
 	RETVAL_BOOL(zend_autoload_unregister(callable TSRMLS_CC) == SUCCESS);

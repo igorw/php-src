@@ -1366,8 +1366,8 @@ ZEND_FUNCTION(trait_exists)
 /* }}} */
 
 
-/* {{{ proto bool function_exists(string function_name) 
-   Checks if the function exists */
+/* {{{ proto bool function_exists(string function_name [, boolean autoload = true]) 
+   Checks if the function exists, optionally and by default invoking autoloaders */
 ZEND_FUNCTION(function_exists)
 {
 	char *name;
@@ -1390,7 +1390,7 @@ ZEND_FUNCTION(function_exists)
 		name_len--;
 	}
 
-	retval = (zend_lookup_function_ex(lcname, name_len+1, NULL, (int) autoload, &func) == SUCCESS);
+	retval = (zend_lookup_function_ex(name, name_len+1, NULL, (int) autoload, &func TSRMLS_CC) == SUCCESS);
 	
 	efree(lcname);
 
@@ -1847,7 +1847,7 @@ ZEND_FUNCTION(create_function)
 	if (retval==SUCCESS) {
 		zend_function new_function, *func;
 
-		if (zend_lookup_function_ex(LAMBDA_TEMP_FUNCNAME, sizeof(LAMBDA_TEMP_FUNCNAME), NULL, 0, &func)==FAILURE) {
+		if (zend_lookup_function_ex(LAMBDA_TEMP_FUNCNAME, sizeof(LAMBDA_TEMP_FUNCNAME), NULL, 0, &func TSRMLS_CC)==FAILURE) {
 			zend_error(E_ERROR, "Unexpected inconsistency in create_function()");
 			RETURN_FALSE;
 		}

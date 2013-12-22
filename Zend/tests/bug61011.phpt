@@ -5,7 +5,7 @@ Bug #61011 (Crash when an exception is thrown by __autoload accessing a static p
 function __autoload($name) {
 	throw new Exception($name);
 }
-try { 
+try {
 	echo AAA::$a; //zend_fetch_var_address_helper
 } catch (Exception $e) {
 	try {
