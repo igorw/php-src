@@ -405,7 +405,7 @@ PHP_FUNCTION(spl_autoload_call)
 	if (EG(autoload_funcs) == NULL) {
 		zend_call_method_with_1_params(NULL, NULL, NULL, "spl_autoload", NULL, class_name);
 	} else {
-		zend_autoload_call(class_name, ZEND_AUTOLOAD_CLASS);
+		zend_autoload_call(class_name, ZEND_AUTOLOAD_CLASS TSRMLS_CC);
 	}
 } /* }}} */
 
@@ -439,7 +439,7 @@ PHP_FUNCTION(spl_autoload_register)
 		ZVAL_STRING(zcallable, "spl_autoload", 1);
 	}
 
-	if (zend_fcall_info_init(zcallable, IS_CALLABLE_STRICT, &func->fci, &func->fcc, NULL, &error) == FAILURE) {
+	if (zend_fcall_info_init(zcallable, IS_CALLABLE_STRICT, &func->fci, &func->fcc, NULL, &error TSRMLS_CC) == FAILURE) {
 		if (Z_TYPE_P(zcallable) == IS_ARRAY) {
 			if (!func->fcc.object_ptr && func->fcc.function_handler && !(func->fcc.function_handler->common.fn_flags & ZEND_ACC_STATIC)) {
 				if (do_throw) {
