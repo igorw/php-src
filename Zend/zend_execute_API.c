@@ -1186,6 +1186,8 @@ ZEND_API int zend_lookup_class_ex(const char *name, int name_length, const zend_
 		retval = SUCCESS;
 	}
 	zval_ptr_dtor(&class_name_ptr);
+	zend_hash_del(EG(in_autoload), lc_name, lc_length);
+	
 	if (!key) {
 		free_alloca(lc_free, use_heap);
 	}
