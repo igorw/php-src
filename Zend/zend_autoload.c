@@ -29,7 +29,7 @@
 #include "zend_interfaces.h"
 #include "zend_exceptions.h"
 
-static char* zend_autoload_get_name_key(zend_fcall_info *fci, int *length, zend_bool *do_free TSRMLS_DC);
+static char* zend_autoload_get_name_key(zend_fcall_info *fci, zend_fcall_info_cache *fcc, int *length, zend_bool *do_free TSRMLS_DC);
 static void zend_autoload_func_dtor(zend_autoload_func *func);
 
 int zend_autoload_call(const zval* name, long type TSRMLS_DC)
@@ -134,7 +134,7 @@ int zend_autoload_call(const zval* name, long type TSRMLS_DC)
     (ht)->pListTail->pListNext = NULL;                      \
     (ht)->pListHead->pListLast = NULL;
 
-static char* zend_autoload_get_name_key(zend_fcall_info *fci, int *length, zend_bool *do_free TSRMLS_DC) {
+static char* zend_autoload_get_name_key(zend_fcall_info *fci, zend_fcall_info_cache *fcc, int *length, zend_bool *do_free TSRMLS_DC) {
 	char *name;
 	switch (Z_TYPE_P(fci->function_name)) {
 		case IS_STRING:
@@ -148,6 +148,24 @@ static char* zend_autoload_get_name_key(zend_fcall_info *fci, int *length, zend_
 			memcpy(name, &Z_OBJ_HANDLE_P(fci->function_name), *length);
 			name[*length] = '\0';
 			return name;
+			break;
+		case IS_ARRAY:
+			if (fcc->function_handler->common.scope) {
+				zend_function *func = fcc->function_handler;
+				zend_class_entry *ce = func->common.scope;
+				
+				*do_free = 1;
+				if (ce) {
+					*length = strlen(func->common.function_name) + ce->name_length + 2;
+					name = emalloc(*length + 1);
+					memcpy(name, ce->name, ce->name_length);
+					memcpy(&name[ce->name_length], "::", sizeof("::")-1);
+					memcpy(&name[ce->name_length+sizeof("::")-1], 
+						func->common.function_name, strlen(func->common.function_name));
+					name[*length] = 0;
+					return name;
+				}
+			}
 			break;
 		default:
 			return 0;
@@ -166,7 +184,7 @@ int zend_autoload_register(zend_autoload_func *func, zend_bool prepend TSRMLS_DC
 	zend_bool do_free = 0;
 	int lc_length, status = SUCCESS;
 
-	lc_name = zend_autoload_get_name_key(&func->fci, &lc_length, &do_free);
+	lc_name = zend_autoload_get_name_key(&func->fci, &func->fcc, &lc_length, &do_free);
 	if (lc_name == 0) {
 		zend_error_noreturn(E_ERROR, "Unknown Function Name Type Provided");
 	}
@@ -204,7 +222,7 @@ int zend_autoload_unregister(zval *callable TSRMLS_DC)
 		return FAILURE;
 	}
 
-	lc_name = zend_autoload_get_name_key(&fci, &lc_length, &do_free);
+	lc_name = zend_autoload_get_name_key(&fci, &fcc, &lc_length, &do_free);
 	if (lc_name == 0) {
 		return FAILURE;
 	}
