@@ -3,7 +3,7 @@ Test function_exists() function : error conditions
 --FILE--
 <?php
 /* 
- * proto bool function_exists(string function_name)
+ * proto bool function_exists(string function_name [, boolean autoload = true])
  * Function is implemented in Zend/zend_builtin_functions.c
 */ 
 
