@@ -13,6 +13,7 @@
    | license@zend.com so we can mail you a copy immediately.              |
    +----------------------------------------------------------------------+
    | Authors: Anthony Ferrara <ircmaxell@php.net>                         |
+   | Authors: Joe Watkins <krakjoe@php.net>                               |
    +----------------------------------------------------------------------+
 */
 

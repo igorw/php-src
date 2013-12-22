@@ -13,6 +13,7 @@
    | license@zend.com so we can mail you a copy immediately.              |
    +----------------------------------------------------------------------+
    | Authors: Anthony Ferrara <ircmaxell@php.net>                         |
+   | Authors: Joe Watkins <krakjoe@php.net>                               |
    +----------------------------------------------------------------------+
 */
 
@@ -93,7 +94,6 @@ int zend_autoload_call(const zval* name, long type TSRMLS_DC)
 	}
 
 	if (zend_hash_add(EG(autoload_stack), lc_name, lc_length+1, (void**)&dummy, sizeof(char), NULL) == FAILURE) {
-		printf("failed to add to autoload stack\n");
 		efree(lc_name);
 		return FAILURE;
 	}
